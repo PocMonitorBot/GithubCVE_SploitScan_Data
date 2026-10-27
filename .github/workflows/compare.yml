@@ -1,0 +1,71 @@
+name: Consistency Compare
+
+# 数据一致性验证：新仓库 vs 原始两仓库（Poc-Monitor-Data / SploitScanData）
+# 每日 03:00 UTC 定期 + 手动触发；报告写入 compare/ 目录入库
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: pocmon-compare
+  cancel-in-progress: false
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout data repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Checkout source repo (private)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.SOURCE_REPO_OWNER || 'PocMonitorBot' }}/${{ vars.SOURCE_REPO_NAME || 'POCMon-Source' }}
+          token: ${{ secrets.CROSS_REPO_TOKEN }}
+          path: ./source
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r source/requirements.txt
+
+      - name: Clone original repos for comparison
+        run: |
+          git clone --depth 1 https://github.com/PocMonitorBot/Poc-Monitor-Data.git ./old-poc-monitor
+          git clone --depth 1 https://github.com/PocMonitorBot/SploitScanData.git ./old-sploitscan
+
+      - name: Run comparison
+        run: |
+          cd source
+          python main.py compare \
+            --data-dir "$GITHUB_WORKSPACE" \
+            --poc-monitor-data "$GITHUB_WORKSPACE/old-poc-monitor" \
+            --sploitscan-data "$GITHUB_WORKSPACE/old-sploitscan" \
+            --report "$GITHUB_WORKSPACE/compare/compare_report.json"
+
+      - name: Commit and push report
+        run: |
+          git config user.name "${{ vars.BOT_NAME || 'github-actions[bot]' }}"
+          git config user.email "${{ vars.BOT_EMAIL || 'github-actions[bot]@users.noreply.github.com' }}"
+          git add compare/ -f
+          if git diff --staged --quiet; then
+            echo "No report changes."
+          else
+            git commit -m "consistency compare $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            for i in 1 2 3; do
+              if git push; then echo "Push OK ($i)"; break
+              else echo "Retry $i..."; git pull --rebase origin main; sleep 5; fi
+            done
+          fi

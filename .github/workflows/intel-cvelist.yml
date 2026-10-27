@@ -1,0 +1,73 @@
+name: Engine B - Intel Monitor (cvelistV5)
+
+# 引擎B：cvelistV5 新 CVE 监控 + 重扫（对应原 SploitScan monitor-cvelist.yml）
+# 每小时运行；PoC 数据直接读取本仓库 repos/（引擎A 产出）
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: pocmon-intel-cvelist
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout data repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Checkout source repo (private)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.SOURCE_REPO_OWNER || 'PocMonitorBot' }}/${{ vars.SOURCE_REPO_NAME || 'POCMon-Source' }}
+          token: ${{ secrets.CROSS_REPO_TOKEN }}
+          path: ./source
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r source/requirements.txt
+
+      - name: Clone cvelistV5
+        run: |
+          git clone --shallow-since="14 days ago" https://github.com/CVEProject/cvelistV5.git ./cvelistV5
+
+      - name: Run intel monitor (cvelist mode)
+        env:
+          VULNCHECK_API_KEYS: ${{ secrets.VULNCHECK_API_KEYS }}
+          GITHUB_TOKENS: ${{ secrets.GH_TOKENS }}
+        run: |
+          cd source
+          python main.py intel \
+            --mode monitor-cvelist \
+            --output "$GITHUB_WORKSPACE" \
+            --cvelist-dir "$GITHUB_WORKSPACE/cvelistV5" \
+            --poc-monitor-dir "$GITHUB_WORKSPACE/repos"
+
+      - name: Commit and push
+        run: |
+          git config user.name "${{ vars.BOT_NAME || 'github-actions[bot]' }}"
+          git config user.email "${{ vars.BOT_EMAIL || 'github-actions[bot]@users.noreply.github.com' }}"
+          git add cves/ .cvelist_state.json .source_state.json .rescan_state.json run_summary.json -f
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "intel-cvelist monitor $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            for i in 1 2 3; do
+              if git push; then echo "Push OK ($i)"; break
+              else echo "Retry $i..."; git pull --rebase origin main; sleep 5; fi
+            done
+          fi

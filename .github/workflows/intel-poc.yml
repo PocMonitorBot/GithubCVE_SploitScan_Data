@@ -1,0 +1,68 @@
+name: Engine B - Intel Monitor (PoC Sources)
+
+# 引擎B：PoC 源变化监控（对应原 SploitScan monitor-poc-sources.yml）
+# 每 6 小时运行；无 cvelistV5 依赖，PoC 数据读本仓库 repos/
+
+on:
+  schedule:
+    - cron: "30 */6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: pocmon-intel-poc
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout data repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Checkout source repo (private)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.SOURCE_REPO_OWNER || 'PocMonitorBot' }}/${{ vars.SOURCE_REPO_NAME || 'POCMon-Source' }}
+          token: ${{ secrets.CROSS_REPO_TOKEN }}
+          path: ./source
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r source/requirements.txt
+
+      - name: Run intel monitor (poc mode)
+        env:
+          VULNCHECK_API_KEYS: ${{ secrets.VULNCHECK_API_KEYS }}
+          GITHUB_TOKENS: ${{ secrets.GH_TOKENS }}
+        run: |
+          cd source
+          python main.py intel \
+            --mode monitor-poc \
+            --output "$GITHUB_WORKSPACE" \
+            --poc-monitor-dir "$GITHUB_WORKSPACE/repos"
+
+      - name: Commit and push
+        run: |
+          git config user.name "${{ vars.BOT_NAME || 'github-actions[bot]' }}"
+          git config user.email "${{ vars.BOT_EMAIL || 'github-actions[bot]@users.noreply.github.com' }}"
+          git add cves/ .source_state.json .rescan_state.json run_summary.json -f
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "intel-poc monitor $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            for i in 1 2 3; do
+              if git push; then echo "Push OK ($i)"; break
+              else echo "Retry $i..."; git pull --rebase origin main; sleep 5; fi
+            done
+          fi

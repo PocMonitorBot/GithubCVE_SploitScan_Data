@@ -1,0 +1,66 @@
+name: Engine A - Repo Monitor
+
+# 引擎A：GitHub PoC 仓库监控（对应原 Poc-Monitor schedule.yml）
+# 每小时双触发（:13 与 :43 错峰，应对 GitHub cron 限流）
+
+on:
+  schedule:
+    - cron: "13 * * * *"
+    - cron: "43 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: pocmon-repo-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout data repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Checkout source repo (private)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.SOURCE_REPO_OWNER || 'PocMonitorBot' }}/${{ vars.SOURCE_REPO_NAME || 'POCMon-Source' }}
+          token: ${{ secrets.CROSS_REPO_TOKEN }}
+          path: ./source
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r source/requirements.txt
+
+      - name: Run repo monitor
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKENS || secrets.CROSS_REPO_TOKEN }}
+          BARK_TOKEN: ${{ secrets.BARK_TOKEN }}
+        run: |
+          cd source
+          python main.py repo-monitor --data-dir "$GITHUB_WORKSPACE"
+
+      - name: Commit and push
+        run: |
+          git config user.name "${{ vars.BOT_NAME || 'github-actions[bot]' }}"
+          git config user.email "${{ vars.BOT_EMAIL || 'github-actions[bot]@users.noreply.github.com' }}"
+          git add repos/ -f
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "repo-monitor $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            for i in 1 2 3; do
+              if git push; then echo "Push OK ($i)"; break
+              else echo "Retry $i..."; git pull --rebase origin main; sleep 5; fi
+            done
+          fi

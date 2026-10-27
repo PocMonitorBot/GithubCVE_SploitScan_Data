@@ -1,0 +1,79 @@
+name: Engine A - Merge (PoC-in-GitHub + Trickest)
+
+# 引擎A：上游源合并（对应原 Poc-Monitor merge.yml）
+# 每 2 小时（UTC 偶数小时 :20），成功后联动触发 repo-monitor
+
+on:
+  schedule:
+    - cron: "20 */2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: pocmon-repo-merge
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout data repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Checkout source repo (private)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.SOURCE_REPO_OWNER || 'PocMonitorBot' }}/${{ vars.SOURCE_REPO_NAME || 'POCMon-Source' }}
+          token: ${{ secrets.CROSS_REPO_TOKEN }}
+          path: ./source
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r source/requirements.txt
+
+      - name: Clone upstream sources
+        run: |
+          git clone --depth 1 https://github.com/nomi-sec/PoC-in-GitHub.git ./poc-in-github
+          git clone --depth 1 https://github.com/trickest/cve.git ./trickest-cve
+
+      - name: Run merge + trickest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKENS || secrets.CROSS_REPO_TOKEN }}
+        run: |
+          cd source
+          python main.py repo-merge --data-dir "$GITHUB_WORKSPACE" --source-dir "$GITHUB_WORKSPACE/poc-in-github"
+          python main.py repo-trickest --data-dir "$GITHUB_WORKSPACE" --trickest-dir "$GITHUB_WORKSPACE/trickest-cve"
+
+      - name: Commit and push
+        run: |
+          git config user.name "${{ vars.BOT_NAME || 'github-actions[bot]' }}"
+          git config user.email "${{ vars.BOT_EMAIL || 'github-actions[bot]@users.noreply.github.com' }}"
+          git add repos/ -f
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "repo-merge + trickest $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            for i in 1 2 3; do
+              if git push; then echo "Push OK ($i)"; break
+              else echo "Retry $i..."; git pull --rebase origin main; sleep 5; fi
+            done
+          fi
+
+      - name: Trigger repo-monitor workflow
+        if: success()
+        run: |
+          gh workflow run repo-monitor.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            || echo "Trigger failed (non-fatal)"
+        env:
+          GH_TOKEN: ${{ secrets.CROSS_REPO_TOKEN }}

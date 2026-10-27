@@ -1,0 +1,33 @@
+{
+  "generated_at": "2026-10-27T10:27:22.400133+00:00",
+  "engine_a": {
+    "old_total": 212285,
+    "new_total": 212285,
+    "common": 212285,
+    "identical": 212285,
+    "semantic_equivalent": 0,
+    "content_diffs_count": 0,
+    "only_in_new": [],
+    "only_in_new_count": 0,
+    "only_in_old": [],
+    "only_in_old_count": 0,
+    "content_diff_samples": []
+  },
+  "engine_b": {
+    "old_total": 116731,
+    "new_total": 116731,
+    "common": 116731,
+    "identical": 116731,
+    "semantic_equivalent": 0,
+    "content_diffs_count": 0,
+    "only_in_new": [],
+    "only_in_new_count": 0,
+    "only_in_old": [],
+    "only_in_old_count": 0,
+    "content_diff_samples": []
+  },
+  "engine_a_consistent": true,
+  "engine_b_consistent": true,
+  "fully_consistent": true,
+  "note": "引擎B 内容差异已剔除每日漂移字段（severity.epss）；新仓库由监控 workflow 持续运行后 only_in_new 会自然出现（新数据），验证一致性应关注 only_in_old_count（旧有新无=数据丢失）与 content_diffs_count。"
+}
