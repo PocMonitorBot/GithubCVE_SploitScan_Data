@@ -1,0 +1,13 @@
+
+# 引擎运行时产物（本地生成，不入库）
+repos/dateLog/
+repos/new.json
+repos/update.json
+repos/*/README.md
+repos/*/metadata.json
+repos/kev.json
+repos/hot_cves.json
+repos/repo_blacklist.json
+repos/blacklist.yaml
+run_summary.json
+compare/old-*.json
