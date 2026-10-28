@@ -1,13 +1,13 @@
-# POCMon-Data
+# GithubCVE_SploitScan_Data
 
-> POCMon 生产数据仓库 —— CVE PoC 仓库索引（repos/）+ CVE 情报融合（cves/）
+> GithubCVE_SploitScan 生产数据仓库 —— CVE PoC 仓库索引（repos/）+ CVE 情报融合（cves/）
 >
-> 数据由 [POCMon](https://github.com/PocMonitorBot/POCMon-Source)（私有源码）的 GitHub Actions 工作流自动更新。
+> 数据由 [GithubCVE_SploitScan](https://github.com/PocMonitorBot/GithubCVE_SploitScan_Code)（私有源码）的 GitHub Actions 工作流自动更新。
 
 ## 仓库结构
 
 ```
-POCMon-Data/
+GithubCVE_SploitScan_Data/
 ├── repos/                          # 引擎A输出：CVE → PoC 仓库列表
 │   ├── {year}/{CVE-ID}.json       #   GitHub API 仓库对象数组 + tags + cve_ids
 │   ├── {year}/{CVE-ID}.refs.json  #   外部参考链接（exploit-db/packetstorm/博客）
@@ -22,7 +22,7 @@ POCMon-Data/
 
 ## 数据格式
 
-详见源码仓库 [docs/OUTPUT-SCHEMA.md](https://github.com/PocMonitorBot/POCMon-Source/blob/main/docs/OUTPUT-SCHEMA.md)。
+详见源码仓库 [docs/OUTPUT-SCHEMA.md](https://github.com/PocMonitorBot/GithubCVE_SploitScan_Code/blob/main/docs/OUTPUT-SCHEMA.md)。
 
 ## 工作流
 

@@ -28,7 +28,7 @@ jobs:
       - name: Checkout source repo (private)
         uses: actions/checkout@v4
         with:
-          repository: ${{ vars.SOURCE_REPO_OWNER || 'PocMonitorBot' }}/${{ vars.SOURCE_REPO_NAME || 'POCMon-Source' }}
+          repository: PocMonitorBot/GithubCVE_SploitScan_Code
           token: ${{ secrets.CROSS_REPO_TOKEN }}
           path: ./source
           fetch-depth: 1
@@ -48,7 +48,7 @@ jobs:
       - name: Run intel monitor (cvelist mode)
         env:
           VULNCHECK_API_KEYS: ${{ secrets.VULNCHECK_API_KEYS }}
-          GITHUB_TOKENS: ${{ secrets.GH_TOKENS }}
+          GITHUB_TOKENS: ${{ secrets.CROSS_REPO_TOKEN }}
         run: |
           cd source
           python main.py intel \
@@ -59,8 +59,8 @@ jobs:
 
       - name: Commit and push
         run: |
-          git config user.name "${{ vars.BOT_NAME || 'github-actions[bot]' }}"
-          git config user.email "${{ vars.BOT_EMAIL || 'github-actions[bot]@users.noreply.github.com' }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add cves/ .cvelist_state.json .source_state.json .rescan_state.json run_summary.json -f
           if git diff --staged --quiet; then
             echo "No changes to commit."
