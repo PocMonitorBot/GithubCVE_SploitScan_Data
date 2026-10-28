@@ -46,6 +46,9 @@ jobs:
           git clone --depth 1 https://github.com/nomi-sec/PoC-in-GitHub.git ./poc-in-github
           git clone --depth 1 https://github.com/trickest/cve.git ./trickest-cve
 
+      - name: Sync blacklist from source repo
+        run: cp -f source/blacklist.yaml repos/blacklist.yaml 2>/dev/null || true
+
       - name: Run merge + trickest
         env:
           GITHUB_TOKEN: ${{ secrets.CROSS_REPO_TOKEN }}
